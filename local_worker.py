@@ -54,6 +54,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import requests
+import yaml
 
 # --- Configuration ---
 
@@ -148,26 +149,14 @@ def parse_task(path: Path) -> dict | None:
     frontmatter_text = match.group(1)
     body = match.group(2) or ""
 
-    # Minimal YAML-ish parser: key: value, one per line
-    task = {}
-    for line in frontmatter_text.split("\n"):
-        line = line.rstrip()
-        if not line or line.startswith("#"):
-            continue
-        if ":" not in line:
-            continue
-        key, _, value = line.partition(":")
-        key = key.strip()
-        value = value.strip()
-        # Strip quotes
-        if value.startswith('"') and value.endswith('"'):
-            value = value[1:-1]
-        elif value.startswith("'") and value.endswith("'"):
-            value = value[1:-1]
-        # Numeric conversion
-        if value and value.replace(".", "", 1).isdigit():
-            value = float(value) if "." in value else int(value)
-        task[key] = value
+    try:
+        task = yaml.safe_load(frontmatter_text)
+    except yaml.YAMLError as e:
+        log(f"[parse] YAML error in {path.name}: {e}")
+        return None
+    if not isinstance(task, dict):
+        log(f"[parse] frontmatter is not a mapping in {path.name}")
+        return None
 
     # Body can extend the prompt
     if body.strip():
